@@ -28,6 +28,7 @@ class SudokuExpression:
         self.columns = columns
         self.placements = placements
 
+    # TODO: Prioritise expressions with division over others.
     def first_empty_slot(self):
         return [n for n in range(9) if n not in self.placements][0]
 
@@ -70,15 +71,31 @@ class Expression:
         self.operators = operators
         self.result = result
 
+    @classmethod
+    def unfilled(cls, operators, result):
+        return cls([None] * 3, operators, result)
+
+    def priority(self):
+        return sum([ord(operator) for operator in self.operators])
+
+    def open_indices(self):
+        return [i for i in range(len(self.numbers)) if self.numbers[i] is None]
+
     def add_number(self, n, i):
         updated_numbers = [n if j == i else self.numbers[j] for j in range(len(self.numbers))]
         return Expression(updated_numbers, self.operators, self.result)
 
     def invalid(self):
-        return self.__has_all_numbers() and eval(str(self)) != self.result
+        return self.__check_invalid_division(0) or \
+               self.__check_invalid_division(1) or \
+               (self.__has_all_numbers() and eval(str(self)) != self.result)
 
     def __has_all_numbers(self):
         return all([n is not None for n in self.numbers])
+
+    def __check_invalid_division(self, operator_index):
+        return self.operators[operator_index] == '/' and \
+               (self.numbers[operator_index] in [1, 2, 3, 5, 7] or self.numbers[operator_index+1] in [5, 6, 7, 8, 9])
 
     def __str__(self):
         numbers_length = len(self.numbers)
@@ -111,25 +128,42 @@ def backtrack(available_numbers, puzzle, finished_flag):
                 return
 
 
+# TODO: Is there a way an unfilled expression could give possible candidates?
 def construct_candidates(available_numbers, puzzle):
     return [] if puzzle.invalid() else sorted(available_numbers, reverse=True)
 
 
-blank_numbers = [None] * 3
 easy_puzzle = SudokuExpression(
     [
-        Expression(blank_numbers, ['/', '-'], 2),
-        Expression(blank_numbers, ['+', '-'], 7),
-        Expression(blank_numbers, ['*', '+'], 13)
+        Expression.unfilled(['/', '-'], 2),
+        Expression.unfilled(['+', '-'], 7),
+        Expression.unfilled(['*', '+'], 13),
     ],
     [
-        Expression(blank_numbers, ['*', '/'], 18),
-        Expression(blank_numbers, ['+', '/'], 6),
-        Expression(blank_numbers, ['*', '-'], 2)
+        Expression.unfilled(['*', '/'], 18),
+        Expression.unfilled(['+', '/'], 6),
+        Expression.unfilled(['*', '-'], 2)
     ]
 )
-# OPTIMIZE!!
+second_easy_puzzle = SudokuExpression(
+    [
+        Expression.unfilled(['+', '/'], 11),
+        Expression.unfilled(['/', '-'], 1),
+        Expression.unfilled(['-', '*'], -33)
+    ],
+    [
+        Expression.unfilled(['*', '/'], 36),
+        Expression.unfilled(['+', '-'], 5),
+        Expression.unfilled(['*', '+'], 10),
+    ]
+)
+
+# EASY PUZZLE
 # Naive score: 2046
 # Sort candidates so largest is first: 63
-# TODO: Expression is invalid when it has a divider with two numbers that aren't divisible
+# Invalid if dividing a prime number: 59
+# Invalid if dividing by a number larger than 5: 31
+
+# SECOND EASY PUZZLE
+# Invalid if dividing by a number larger than 5: 60
 backtrack([n+1 for n in range(9)], easy_puzzle, FinishedFlag())
